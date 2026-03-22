@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: uradisam_api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - AI_MODEL=${AI_MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+    volumes:
+      - ./app:/code/app
+      - ./scripts:/code/scripts
+      - ./data:/code/data
+      - ./chroma_db:/code/chroma_db
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: uradisam_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:
