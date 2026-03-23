@@ -24,4 +24,6 @@ def analyze_task(self, image_base64: str, question: str, cache_key: str = None):
         return result
 
     except Exception as exc:
-        raise self.retry(exc=exc, countdown=10)
+        retry_delay = 10 * (2 ** self.request.retries)
+        print(f"Greška u obradi, pokušavam ponovno za {retry_delay} sekundi... (Pokušaj {self.request.retries + 1}/3)")
+        raise self.retry(exc=exc, countdown=retry_delay)

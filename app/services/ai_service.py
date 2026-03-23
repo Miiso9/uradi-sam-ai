@@ -25,13 +25,13 @@ def analyze_sync(image_base64: str, question: str) -> dict:
 
     start = time.time()
     try:
-        with httpx.Client(timeout=120) as client:
+        with httpx.Client(timeout=60.0) as client:
             res = client.post(f"{settings.OLLAMA_HOST}/api/generate", json=payload)
             res.raise_for_status()
             raw_response = res.json().get("response", "{}")
     except Exception as e:
         logger.error(f"Ollama nedostupna ili je bacila timeout: {e}")
-        return {"error": "AI sustav je trenutno preopterećen."}
+        raise RuntimeError(f"AI obrada nije uspjela unutar zadanog vremena: {e}")
 
     latency = round(time.time() - start, 2)
 
@@ -48,7 +48,8 @@ def analyze_sync(image_base64: str, question: str) -> dict:
     safety_check = enforce_safety_sync(analysis_data.solution, analysis_data.diy_feasibility)
     if not safety_check["safe"]:
         analysis_data.diy_feasibility = "DO_NOT_ATTEMPT"
-        analysis_data.solution = "SISTEMSKA BLOKADA: Otkriven opasan zahvat. Ne pokušavajte sami. Pozovite ovlaštenog stručnjaka."
+        razlog = safety_check.get("reason", "SISTEMSKA BLOKADA: Otkriven opasan zahvat. Ne pokušavajte sami. Pozovite ovlaštenog stručnjaka.")
+        analysis_data.solution = razlog
         analysis_data.dangers = "OPASNOST PO ŽIVOT I IMOVINU. Rad zahtijeva certifikat."
 
     if analysis_data.confidence < 0.6 and analysis_data.diy_feasibility != "DO_NOT_ATTEMPT":
