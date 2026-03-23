@@ -1,8 +1,14 @@
 fastapi
 uvicorn
 python-multipart
+celery
+redis
+slowapi
+pillow
 httpx
-langchain
+pydantic
+pydantic-settings
 langchain-community
 chromadb
-pypdf
+python-dotenv
+PyJWT
