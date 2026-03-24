@@ -4,7 +4,10 @@ from app.core.config import settings
 celery_app = Celery(
     "uradisam_worker",
     broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL
+    backend=settings.REDIS_URL,
+    include=['app.workers.tasks'],
+    task_acks_late=True,
+    task_track_started=True
 )
 
 celery_app.conf.update(

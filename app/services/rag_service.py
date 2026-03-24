@@ -1,56 +1,55 @@
 import logging
-import concurrent.futures
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-try:
-    embeddings = OllamaEmbeddings(
-        model=settings.EMBEDDING_MODEL,
-        base_url=settings.OLLAMA_HOST
-    )
-    vector_db = Chroma(
-        persist_directory="chroma_db",
-        embedding_function=embeddings
-    )
-    logger.info("RAG Vektorska baza uspješno učitana.")
-except Exception as e:
-    logger.error(f"RAG inicijalizacija nije uspjela. Vektorska baza neće biti dostupna: {e}")
-    vector_db = None
+def get_vector_db():
+    """Lazy loading Chroma baze kako bi izbjegli Celery SQLite deadlock."""
+    try:
+        embeddings = OllamaEmbeddings(
+            model=settings.EMBEDDING_MODEL,
+            base_url=settings.OLLAMA_HOST
+        )
+        vector_db = Chroma(
+            persist_directory="chroma_db",
+            embedding_function=embeddings
+        )
+        return vector_db
+    except Exception as e:
+        logger.error(f"RAG inicijalizacija nije uspjela: {e}")
+        return None
 
-def _do_search(query: str, k: int = 3) -> str:
+def retrieve_context_with_timeout(query: str, threshold: float = 1.5) -> str:
     """
-    Funkcija koja komunicira s ChromaDB-om.
-    Ovo se izvršava u odvojenom threadu kako ne bi blokiralo glavni proces.
+    Dohvaćanje konteksta s filtriranjem loših rezultata.
+    Mali score (udaljenost) = velika sličnost.
     """
-    results = vector_db.similarity_search(query, k=k)
-    return "\n---\n".join([doc.page_content for doc in results])
+    vector_db = get_vector_db()
 
-def retrieve_context_with_timeout(query: str, timeout_sec: int = 5) -> str:
-    """
-    Javna funkcija za dohvaćanje konteksta sa strogim vremenskim ograničenjem.
-    Sprječava da spora baza trajno zaključa Celery Workera.
-    """
     if not vector_db:
-        return "Baza znanja trenutno nije dostupna."
+        logger.warning("Baza znanja nije dostupna, preskačem RAG.")
+        return ""
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_do_search, query)
-        try:
-            context = future.result(timeout=timeout_sec)
+    logger.info(f"Pretražujem RAG bazu za upit: '{query}'")
 
-            if not context.strip():
-                return "Nema relevantnih podataka u priručnicima za ovaj upit."
+    try:
+        results_with_scores = vector_db.similarity_search_with_score(query, k=3)
 
-            logger.info(f"RAG pretraga uspješna za upit: '{query}'")
-            return context
+        valid_results = []
+        for doc, score in results_with_scores:
+            logger.info(f"Pronađen dokument u bazi sa score-om udaljenosti: {round(score, 2)}")
+            if score < threshold:
+                valid_results.append(doc.page_content)
 
-        except concurrent.futures.TimeoutError:
-            logger.warning(f"RAG Timeout! Pretraga trajala duže od {timeout_sec}s. Nastavljam analizu bez priručnika.")
-            return "Nema dostupnog konteksta (baza je bila prespora)."
+        if not valid_results:
+            logger.info("RAG dokumenti nisu dovoljno relevantni za ovaj upit. Preskačem ubacivanje konteksta.")
+            return ""
 
-        except Exception as e:
-            logger.error(f"Neočekivana greška pri RAG pretrazi: {e}")
-            return "Došlo je do greške pri pretraživanju priručnika."
+        logger.info(f"RAG pretraga uspješna! Filtrirano {len(valid_results)} visoko relevantnih odlomaka.")
+        return "\n---\n".join(valid_results)
+
+    except Exception as e:
+        logger.error(f"Neočekivana greška pri RAG pretrazi: {e}")
+        return ""

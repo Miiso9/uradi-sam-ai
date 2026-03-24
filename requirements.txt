@@ -12,3 +12,5 @@ langchain-community
 chromadb
 python-dotenv
 PyJWT
+pypdf
+langchain-ollama
