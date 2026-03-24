@@ -4,6 +4,7 @@ import logging
 from deep_translator import GoogleTranslator  # <-- Dodan prevoditelj
 
 from app.core.config import settings
+from app.services.b2b_service import match_b2b_opportunities
 from app.services.rag_service import retrieve_context_with_timeout
 from app.services.prompts import SYSTEM_PROMPT
 from app.services.safety_guard import enforce_safety_sync
@@ -82,8 +83,9 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         analysis_data.solution = "The model is not entirely sure. We recommend consulting a professional."
         analysis_data.diy_feasibility = "UNKNOWN"
 
+    # 5. Prevodimo finalne rezultate nazad na HRVATSKI
     try:
-        logger.info("Prevodim JSON vrijednosti nazad na hrvatski...")
+        logger.info("🔤 Prevodim JSON vrijednosti nazad na hrvatski...")
         translator = GoogleTranslator(source='en', target='hr')
 
         if analysis_data.rejection_reason:
@@ -95,10 +97,27 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         if analysis_data.dangers:
             analysis_data.dangers = translator.translate(analysis_data.dangers)
 
+        # NOVO: Prevodimo i B2B polja
+        if analysis_data.recommended_expert:
+            analysis_data.recommended_expert = translator.translate(analysis_data.recommended_expert)
+
+        translated_tools = []
+        for tool in analysis_data.required_tools:
+            translated_tools.append(translator.translate(tool))
+        analysis_data.required_tools = translated_tools
+
     except Exception as e:
-        logger.error(f"Greška pri prijevodu na hrvatski: {e}")
+        logger.error(f"❌ Greška pri prijevodu na hrvatski: {e}")
+
+    # 6. B2B Matchmaking (Tražimo linkove ili majstore na osnovu prevedenih podataka)
+    b2b_info = match_b2b_opportunities(
+        tools=analysis_data.required_tools,
+        expert=analysis_data.recommended_expert,
+        feasibility=analysis_data.diy_feasibility
+    )
 
     return {
         "data": analysis_data.model_dump(),
+        "b2b": b2b_info,
         "latency": latency
     }
