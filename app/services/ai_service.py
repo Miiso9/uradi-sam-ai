@@ -1,6 +1,8 @@
 import time
 import httpx
 import logging
+from deep_translator import GoogleTranslator  # <-- Dodan prevoditelj
+
 from app.core.config import settings
 from app.services.rag_service import retrieve_context_with_timeout
 from app.services.prompts import SYSTEM_PROMPT
@@ -11,23 +13,34 @@ from app.utils.json_utils import extract_json_string
 logger = logging.getLogger(__name__)
 
 def analyze_sync(image_base64: str, question: str) -> dict:
-    """Obrada slike i teksta unutar Celery workera."""
+    """Obrada slike i teksta unutar Celery workera s uključenim prijevodom."""
 
-    logger.info(f"Započinjem AI analizu za upit: '{question}'")
+    logger.info(f"▶️ Započinjem AI analizu za upit: '{question}'")
 
     context = retrieve_context_with_timeout(question)
 
+    try:
+        logger.info("Prevodim pitanje na engleski za AI...")
+        en_question = GoogleTranslator(source='hr', target='en').translate(question)
+        logger.info(f"Pitanje na engleskom: '{en_question}'")
+    except Exception as e:
+        logger.error(f"Greška pri prijevodu pitanja, koristim original: {e}")
+        en_question = question
+
     if context:
-        prompt = f"{SYSTEM_PROMPT}\nPitanje: {question}\nKontekst priručnika:\n{context}"
+        prompt = f"{SYSTEM_PROMPT}\nQuestion: {en_question}\nManual Context:\n{context}"
     else:
-        prompt = f"{SYSTEM_PROMPT}\nPitanje: {question}\nNema dostupnog priručnika za ovaj problem. Osloni se isključivo na vizualnu analizu i vlastito znanje."
+        prompt = f"{SYSTEM_PROMPT}\nQuestion: {en_question}\nNo manual available. Rely exclusively on visual analysis."
 
     payload = {
         "model": settings.AI_MODEL,
         "prompt": prompt,
         "images": [image_base64],
         "stream": False,
-        "format": AIAnalysisResult.model_json_schema()
+        "format": AIAnalysisResult.model_json_schema(),
+        "options": {
+            "temperature": 0.2
+        }
     }
 
     start = time.time()
@@ -37,7 +50,7 @@ def analyze_sync(image_base64: str, question: str) -> dict:
             res = client.post(f"{settings.OLLAMA_HOST}/api/generate", json=payload)
             res.raise_for_status()
             raw_response = res.json().get("response", "{}")
-            logger.info(f"RAW LLaVA ODGOVOR: {raw_response}")
+            logger.info(f"RAW LLaVA ODGOVOR (na engleskom): {raw_response}")
     except Exception as e:
         logger.error(f"Ollama nedostupna ili je bacila timeout: {e}")
         raise RuntimeError(f"AI obrada nije uspjela unutar zadanog vremena: {e}")
@@ -51,20 +64,39 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         logger.error(f"Pydantic parsing greška: {e} na raw: {raw_response}")
         analysis_data = AIAnalysisResult(
             is_relevant=False,
-            rejection_reason="Greška pri parsiranju odgovora modela.",
+            rejection_reason="Error parsing model response.",
             confidence=0.0
         )
 
     safety_check = enforce_safety_sync(analysis_data.solution, analysis_data.diy_feasibility)
     if not safety_check["safe"]:
         analysis_data.diy_feasibility = "DO_NOT_ATTEMPT"
-        razlog = safety_check.get("reason", "SISTEMSKA BLOKADA: Otkriven opasan zahvat. Ne pokušavajte sami. Pozovite ovlaštenog stručnjaka.")
-        analysis_data.solution = razlog
-        analysis_data.dangers = "OPASNOST PO ŽIVOT I IMOVINU. Rad zahtijeva certifikat."
+
+        reason = safety_check.get("reason", "Unknown safety reason.")
+        logger.warning(f"SAFETY GUARD BLOKIRAO RJEŠENJE! Razlog: {reason}")
+
+        analysis_data.solution = "CRITICAL DANGER: Do not touch the device or try to fix it yourself. Immediately turn off the main power supply at the fuse box. If there is an active fire, evacuate the area and call emergency services (fire department). Contact a certified electrician."
+        analysis_data.dangers = "EXTREME RISK OF ELECTROCUTION AND FIRE. Requires immediate professional intervention."
 
     if analysis_data.confidence < 0.6 and analysis_data.diy_feasibility != "DO_NOT_ATTEMPT":
-        analysis_data.solution = "Model nije potpuno siguran u dijagnozu. Preporučujemo konzultacije sa stručnjakom prije ikakvih zahvata."
+        analysis_data.solution = "The model is not entirely sure. We recommend consulting a professional."
         analysis_data.diy_feasibility = "UNKNOWN"
+
+    try:
+        logger.info("Prevodim JSON vrijednosti nazad na hrvatski...")
+        translator = GoogleTranslator(source='en', target='hr')
+
+        if analysis_data.rejection_reason:
+            analysis_data.rejection_reason = translator.translate(analysis_data.rejection_reason)
+        if analysis_data.identification:
+            analysis_data.identification = translator.translate(analysis_data.identification)
+        if analysis_data.solution:
+            analysis_data.solution = translator.translate(analysis_data.solution)
+        if analysis_data.dangers:
+            analysis_data.dangers = translator.translate(analysis_data.dangers)
+
+    except Exception as e:
+        logger.error(f"Greška pri prijevodu na hrvatski: {e}")
 
     return {
         "data": analysis_data.model_dump(),

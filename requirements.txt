@@ -14,3 +14,4 @@ python-dotenv
 PyJWT
 pypdf
 langchain-ollama
+deep-translator
