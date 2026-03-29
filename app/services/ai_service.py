@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def analyze_sync(image_base64: str, question: str) -> dict:
     """Obrada slike i teksta unutar Celery workera s uključenim prijevodom."""
 
-    logger.info(f"▶️ Započinjem AI analizu za upit: '{question}'")
+    logger.info(f"Započinjem AI analizu za upit: '{question}'")
 
     context = retrieve_context_with_timeout(question)
 
@@ -70,22 +70,26 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         )
 
     safety_check = enforce_safety_sync(analysis_data.solution, analysis_data.diy_feasibility)
-    if not safety_check["safe"]:
+
+    if safety_check.get("override"):
         analysis_data.diy_feasibility = "DO_NOT_ATTEMPT"
 
         reason = safety_check.get("reason", "Unknown safety reason.")
-        logger.warning(f"SAFETY GUARD BLOKIRAO RJEŠENJE! Razlog: {reason}")
+        logger.warning(f"SAFETY GUARD PREPISAO RJEŠENJE! Razlog: {reason}")
 
-        analysis_data.solution = "CRITICAL DANGER: Do not touch the device or try to fix it yourself. Immediately turn off the main power supply at the fuse box. If there is an active fire, evacuate the area and call emergency services (fire department). Contact a certified electrician."
-        analysis_data.dangers = "EXTREME RISK OF ELECTROCUTION AND FIRE. Requires immediate professional intervention."
+        analysis_data.solution = "CRITICAL DANGER: The system detected hazardous elements (e.g., electricity, gas, structural integrity) in this repair. Do not attempt this yourself. Contact a certified professional immediately."
+        analysis_data.dangers = "EXTREME RISK OF INJURY, FIRE, OR PROPERTY DAMAGE."
+
+    elif analysis_data.diy_feasibility == "DO_NOT_ATTEMPT":
+        logger.info("Model je ispravno prepoznao opasnost (DO_NOT_ATTEMPT). Zadržavam njegov pametni odgovor.")
+        analysis_data.solution = f"SYSTEM WARNING: {analysis_data.solution}"
 
     if analysis_data.confidence < 0.6 and analysis_data.diy_feasibility != "DO_NOT_ATTEMPT":
         analysis_data.solution = "The model is not entirely sure. We recommend consulting a professional."
         analysis_data.diy_feasibility = "UNKNOWN"
 
-    # 5. Prevodimo finalne rezultate nazad na HRVATSKI
     try:
-        logger.info("🔤 Prevodim JSON vrijednosti nazad na hrvatski...")
+        logger.info("Prevodim JSON vrijednosti nazad na hrvatski...")
         translator = GoogleTranslator(source='en', target='hr')
 
         if analysis_data.rejection_reason:
@@ -97,7 +101,6 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         if analysis_data.dangers:
             analysis_data.dangers = translator.translate(analysis_data.dangers)
 
-        # NOVO: Prevodimo i B2B polja
         if analysis_data.recommended_expert:
             analysis_data.recommended_expert = translator.translate(analysis_data.recommended_expert)
 
@@ -107,9 +110,8 @@ def analyze_sync(image_base64: str, question: str) -> dict:
         analysis_data.required_tools = translated_tools
 
     except Exception as e:
-        logger.error(f"❌ Greška pri prijevodu na hrvatski: {e}")
+        logger.error(f"Greška pri prijevodu na hrvatski: {e}")
 
-    # 6. B2B Matchmaking (Tražimo linkove ili majstore na osnovu prevedenih podataka)
     b2b_info = match_b2b_opportunities(
         tools=analysis_data.required_tools,
         expert=analysis_data.recommended_expert,

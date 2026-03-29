@@ -1,4 +1,5 @@
 import logging
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +10,7 @@ EXPERTS_DB = {
     "plinar": "+387 63 777 888 (Plin Sigurnost)"
 }
 
-SHOP_SEARCH_URL = "[https://pennyshop.ba/shop/pretraga?keywords=](https://pennyshop.ba/shop/pretraga?keywords=)"
+SHOP_SEARCH_URL = "https://pennyshop.ba/shop/pretraga?keywords="
 
 def match_b2b_opportunities(tools: list, expert: str, feasibility: str) -> dict:
     """
@@ -35,7 +36,7 @@ def match_b2b_opportunities(tools: list, expert: str, feasibility: str) -> dict:
     elif feasibility in ["EASY", "MEDIUM", "HARD"]:
         links = []
         for tool in tools:
-            safe_query = str(tool).strip().replace(" ", "+")
+            safe_query = urllib.parse.quote_plus(str(tool).strip())
             links.append(f"{SHOP_SEARCH_URL}{safe_query}")
 
         b2b_data["shop_links"] = links
