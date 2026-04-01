@@ -6,7 +6,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 DANGEROUS_KEYWORDS = re.compile(
-    r'\b(electricity|wire|wires|gas|fuse|load-bearing wall|high voltage|220v|110v|pressurized boiler)\b',
+    r'\b(mains power|live wire|live wires|gas pipe|gas leak|fuse box|breaker box|load-bearing wall|high voltage|220v|230v|110v|pressurized boiler)\b',
     re.IGNORECASE
 )
 

@@ -1,9 +1,11 @@
 import jwt
+import logging
 from fastapi import Request, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 async def verify_supabase_jwt(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
     """
