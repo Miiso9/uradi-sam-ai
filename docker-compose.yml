@@ -16,8 +16,8 @@ services:
       - SAFETY_MODEL=${SAFETY_MODEL:-llama3}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
       - REDIS_URL=redis://redis:6379/0
-      - API_KEY=${API_KEY:-supersecret}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     volumes:
       - ./app:/code/app
       - ./chroma_db:/code/chroma_db
@@ -35,8 +35,8 @@ services:
       - SAFETY_MODEL=${SAFETY_MODEL:-llama3}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
       - REDIS_URL=redis://redis:6379/0
-      - API_KEY=${API_KEY:-supersecret}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     volumes:
       - ./app:/code/app
       - ./scripts:/code/scripts
