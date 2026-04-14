@@ -15,3 +15,4 @@ PyJWT
 pypdf
 langchain-ollama
 deep-translator
+supabase==2.11.0

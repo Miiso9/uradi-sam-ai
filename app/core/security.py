@@ -1,16 +1,14 @@
 import json
 import urllib.request
-
+import logging
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-import logging
 from app.core.config import settings
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
 
-def verify_supabase_jwt(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
+def verify_supabase_jwt(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
     """
     Verificira JWT token tako da direktno pita Supabase je li validan.
     Ovo rješava sve probleme s novim ECC / HS256 algoritmima.
@@ -35,7 +33,7 @@ def verify_supabase_jwt(credentials: HTTPAuthorizationCredentials = Security(sec
                 if not user_id:
                     raise HTTPException(status_code=401, detail="Nevažeći token payload.")
 
-                return user_id
+                return {"user_id": user_id, "token": token}
 
     except urllib.error.HTTPError as e:
         logger.error(f"Supabase odbio token: {e.code}")

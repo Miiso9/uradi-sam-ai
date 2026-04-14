@@ -11,5 +11,6 @@ class Settings(BaseSettings):
     MAX_IMAGE_SIZE_MB: int = 5
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
 
 settings = Settings()
