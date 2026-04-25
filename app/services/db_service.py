@@ -49,10 +49,12 @@ class DBService:
 
     def get_user_push_token(self, user_id: str) -> Optional[str]:
         client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
-        res = client.table("profiles").select("push_token, notifications_enabled").eq("id", user_id).single().execute()
-
-        if res.data and res.data.get("notifications_enabled"):
-            return res.data.get("push_token")
-        return None
+        try:
+            res = client.table("profiles").select("push_token, notifications_enabled").eq("id", user_id).single().execute()
+            if res.data and res.data.get("notifications_enabled"):
+                return res.data.get("push_token")
+            return None
+        except Exception:
+            return None
 
 db_service = DBService()

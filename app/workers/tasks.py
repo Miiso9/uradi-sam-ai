@@ -21,9 +21,19 @@ def analyze_task(self, image_64: Optional[str], question: str, cache_key: Option
             full_chat = db_service.get_chat_with_messages(chat_id, user_id, token)
             if full_chat and "messages" in full_chat:
                 for msg in full_chat["messages"]:
+                    role = "user" if msg["role"] == "user" else "assistant"
+                    content = msg["content"]
+
+                    if role == "assistant" and msg.get("ai_data"):
+                        ai_data = msg["ai_data"].get("data", {})
+                        if ai_data:
+                            ident = ai_data.get("identification", "")
+                            tools = ", ".join(ai_data.get("required_tools", []))
+                            content = f"[PREVIOUS IDENTIFICATION: {ident}]\n[PREVIOUS TOOLS: {tools}]\n{content}"
+
                     chat_history.append({
-                        "role": "user" if msg["role"] == "user" else "assistant",
-                        "content": msg["content"]
+                        "role": role,
+                        "content": content
                     })
 
         raw_ai_response = analyze_sync(

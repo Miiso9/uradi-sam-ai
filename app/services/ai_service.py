@@ -24,6 +24,14 @@ def analyze_sync(image_base64: Optional[str], question: str, history: List[Dict]
         en_question = question
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    if history:
+        for msg in history:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
     final_user_prompt = ""
 
     if context:
@@ -33,30 +41,22 @@ def analyze_sync(image_base64: Optional[str], question: str, history: List[Dict]
             f"Do not set is_relevant to false just because this manual text is wrong.)\n\n"
         )
 
-    if history:
-        final_user_prompt += "--- PREVIOUS CONVERSATION HISTORY ---\n"
-        for msg in history:
-            role_name = "User" if msg["role"] == "user" else "AI"
-            final_user_prompt += f"{role_name}: {msg['content']}\n"
-
-        final_user_prompt += (
-            "\n(CRITICAL: The above was the past conversation. Now answer the CURRENT QUESTION below. "
-            "You MUST still return ONLY the requested JSON format. DO NOT use placeholder words like 'tool1'.)\n\n"
-        )
-
     final_user_prompt += f"--- CURRENT QUESTION ---\n{en_question}"
 
     current_message = {
         "role": "user",
         "content": final_user_prompt
     }
+
     if image_base64:
         current_message["images"] = [image_base64]
 
     messages.append(current_message)
 
+    model_to_use = settings.SAFETY_MODEL if not image_base64 and history else settings.AI_MODEL
+
     payload = {
-        "model": settings.AI_MODEL,
+        "model": model_to_use,
         "messages": messages,
         "stream": False,
         "format": AIAnalysisResult.model_json_schema(),
@@ -126,7 +126,7 @@ def send_expo_push_notification(token: str, title: str, body: str, data: dict = 
     if not token:
         return
 
-    url = "https://exp.host/--/api/v2/push/send"
+    url = "[https://exp.host/--/api/v2/push/send](https://exp.host/--/api/v2/push/send)"
     payload = {
         "to": token,
         "title": title,
