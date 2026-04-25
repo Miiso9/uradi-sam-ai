@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Optional
 from app.workers.celery_app import celery_app
-from app.services.ai_service import analyze_sync, generate_chat_title
+from app.services.ai_service import analyze_sync, generate_chat_title, send_expo_push_notification
 from app.services.b2b_service import match_b2b_opportunities
 from app.services.db_service import db_service
 from app.core.config import settings
@@ -56,6 +56,19 @@ def analyze_task(self, image_64: Optional[str], question: str, cache_key: Option
             content=analysis_data.get("solution", "Analiza završena."),
             ai_data=final_result
         )
+
+        try:
+            push_token = db_service.get_user_push_token(user_id)
+            if push_token:
+                problem_id = analysis_data.get("identification", "Popravak je spreman")
+                send_expo_push_notification(
+                    token=push_token,
+                    title="AI Majstor je završio!",
+                    body=f"Rešenje: {problem_id[:50]}...",
+                    data={"chat_id": chat_id}
+                )
+        except Exception as e:
+            logger.error(f"Greška pri slanju notifikacije: {e}")
 
         if not chat_history:
             try:

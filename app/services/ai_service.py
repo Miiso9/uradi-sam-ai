@@ -120,3 +120,25 @@ def generate_chat_title(question: str, solution: str) -> str:
             return res.json().get("response", "Novi popravak").strip()
     except:
         return question[:30]
+
+def send_expo_push_notification(token: str, title: str, body: str, data: dict = None):
+    """Šalje push obavijest korisniku preko Expo API-ja."""
+    if not token:
+        return
+
+    url = "https://exp.host/--/api/v2/push/send"
+    payload = {
+        "to": token,
+        "title": title,
+        "body": body,
+        "sound": "default",
+        "data": data or {}
+    }
+
+    try:
+        with httpx.Client() as client:
+            res = client.post(url, json=payload)
+            res.raise_for_status()
+            logger.info(f"Push notification sent to {token}")
+    except Exception as e:
+        logger.error(f"Failed to send push notification: {e}")
