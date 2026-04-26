@@ -62,6 +62,19 @@ services:
     volumes:
       - ollama_data:/root/.ollama
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: uradisam_ngrok
+    ports:
+      - "4040:4040"
+    depends_on:
+      - api
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - "http"
+      - "api:8000"
+
 volumes:
   ollama_data:
   redis_data:
